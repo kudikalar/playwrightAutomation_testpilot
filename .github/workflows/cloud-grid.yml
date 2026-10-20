@@ -25,6 +25,6 @@ jobs:
       - run: npm ci
       - if: ${{ inputs.grid == 'saucelabs' }}
         run: npx saucectl run --config .sauce/config.yml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with: { name: "cloud-${{ inputs.grid }}-report", path: reports/, retention-days: 14 }
