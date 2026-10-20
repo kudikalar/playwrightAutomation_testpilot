@@ -66,5 +66,5 @@ jobs:
     needs: regression
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
       - run: echo "All release gates passed for ${{ inputs.version }} — promoting."
