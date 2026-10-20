@@ -1,0 +1,5 @@
+# Review routing — replace the team handles with your own.
+*              @your-org/qa-automation
+/integrations/ @your-org/qa-platform
+/.github/      @your-org/devops
+Jenkinsfile    @your-org/devops

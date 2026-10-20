@@ -1,0 +1,30 @@
+# docker compose up --build --abort-on-container-exit tests
+# Runs the suite in a container against the bundled mock integrations (Jira, Zephyr, GitHub, Slack, Teams).
+services:
+  mock-integrations:
+    image: node:20-alpine
+    working_dir: /app
+    command: node tools/mock-integrations/server.cjs
+    environment:
+      MOCK_BIND: 0.0.0.0
+      MOCK_INTEGRATIONS_PORT: "4599"
+    volumes:
+      - ./tools/mock-integrations:/app/tools/mock-integrations:ro
+      - ./reports:/app/reports
+    ports: ["4599:4599"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4599/__mock/health"]
+      interval: 3s
+      retries: 20
+  tests:
+    build: .
+    env_file: [.env.qa]
+    environment:
+      CI: "true"
+      INTEGRATIONS_MODE: mock
+      MOCK_INTEGRATIONS_URL: http://mock-integrations:4599
+    depends_on:
+      mock-integrations: { condition: service_healthy }
+    volumes:
+      - ./reports:/e2e/reports
+      - ./test-results:/e2e/test-results

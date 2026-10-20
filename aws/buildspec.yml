@@ -1,0 +1,25 @@
+# AWS CodeBuild — runs the suite and archives reports to S3.
+# Environment image: mcr.microsoft.com/playwright:v1.63.0-noble. Credentials come from Secrets Manager (SECRETS_PROVIDER=aws) via the CodeBuild role.
+version: 0.2
+env:
+  variables:
+    TEST_ENV: qa
+    INTEGRATIONS_MODE: live
+    SECRETS_PROVIDER: aws
+    AWS_SECRET_ID: stage-vhc-healthcare/qa/automation
+    AWS_S3_UPLOAD: "true"
+    AWS_S3_BUCKET: stage-vhc-healthcare-test-reports
+phases:
+  install:
+    commands:
+      - npm ci
+      - npm i --no-save @aws-sdk/client-s3 @aws-sdk/client-secrets-manager
+  build:
+    commands:
+      - npx playwright test --grep "@regression"
+reports:
+  e2e:
+    files: ['reports/junit.xml']
+    file-format: JUNITXML
+artifacts:
+  files: ['reports/**/*']

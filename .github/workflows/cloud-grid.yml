@@ -1,0 +1,30 @@
+# Manual cross-browser run on a cloud grid
+name: Cloud Grid
+on:
+  workflow_dispatch:
+    inputs:
+      grid: { description: "Grid", type: choice, options: [saucelabs] }
+      suite: { description: "Tag", type: choice, options: [smoke, critical, regression] }
+      environment: { description: "Environment", type: choice, options: [qa, uat, stage, dev] }
+jobs:
+  cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TEST_ENV: ${{ inputs.environment }}
+      RUN_ON: ${{ inputs.grid }}
+      INTEGRATIONS_MODE: ${{ vars.INTEGRATIONS_MODE || 'mock' }}
+      SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+      SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
+      SAUCE_REGION: ${{ vars.SAUCE_REGION || 'us-west-1' }}
+      SAUCE_BUILD: ${{ github.repository }}-${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - if: ${{ inputs.grid == 'saucelabs' }}
+        run: npx saucectl run --config .sauce/config.yml
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with: { name: "cloud-${{ inputs.grid }}-report", path: reports/, retention-days: 14 }

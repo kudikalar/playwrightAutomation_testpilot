@@ -1,0 +1,43 @@
+# npx saucectl run --config .sauce/config.yml   (SAUCE_USERNAME / SAUCE_ACCESS_KEY from the environment)
+apiVersion: v1alpha
+kind: playwright
+sauce:
+  region: ${SAUCE_REGION}
+  concurrency: 8
+  retries: 1
+  metadata:
+    build: ${SAUCE_BUILD}
+    tags: [stage-vhc-healthcare, e2e]
+playwright:
+  version: package.json
+rootDir: ./
+suites:
+  - name: "smoke-chromium"
+    platformName: "Windows 11"
+    testMatch: ['tests/.*\.spec\.(ts|js)']
+    params:
+      browserName: "chromium"
+      project: "chromium"
+      grep: "@smoke"
+    env:
+      TEST_ENV: ${TEST_ENV}
+      INTEGRATIONS_MODE: ${INTEGRATIONS_MODE}
+  - name: "regression-chromium"
+    platformName: "Windows 11"
+    testMatch: ['tests/.*\.spec\.(ts|js)']
+    params:
+      browserName: "chromium"
+      project: "chromium"
+      grep: "@regression"
+    env:
+      TEST_ENV: ${TEST_ENV}
+      INTEGRATIONS_MODE: ${INTEGRATIONS_MODE}
+artifacts:
+  download:
+    when: always
+    match: ['*']
+    directory: ./reports/saucelabs
+reporters:
+  junit:
+    enabled: true
+    filename: reports/saucelabs-junit.xml

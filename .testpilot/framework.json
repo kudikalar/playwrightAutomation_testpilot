@@ -1,0 +1,10 @@
+{
+  "generator": "Test Pilot",
+  "framework": "fw_4ccfe1973370",
+  "name": "Stage-vhc-healthcare playwright typescript",
+  "version": 1,
+  "engine": "playwright",
+  "language": "typescript",
+  "pattern": "enterprise",
+  "tests": 220
+}

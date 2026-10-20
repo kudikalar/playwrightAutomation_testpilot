@@ -1,0 +1,11 @@
+node_modules/
+reports/
+test-results/
+playwright-report/
+blob-report/
+.auth/
+logs/*.log
+.env
+.env.local
+.env.*.local
+.features-gen/

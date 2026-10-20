@@ -1,0 +1,100 @@
+# Pull request validation (§113): lint → smoke → critical → quality gate → merge allowed/blocked
+name: PR Validation
+on:
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+  pull-requests: write   # results comment
+  statuses: write        # testpilot/e2e commit status
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx tsc --noEmit
+      - run: npx eslint .
+  smoke:
+    needs: lint
+    runs-on: ubuntu-latest
+    env:
+      TEST_ENV: ${{ vars.TEST_ENV || 'qa' }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      INTEGRATIONS_MODE: ${{ vars.INTEGRATIONS_MODE || 'mock' }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      ZEPHYR_API_TOKEN: ${{ secrets.ZEPHYR_API_TOKEN }}
+      SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+      SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+      RUN_NAME: ${{ github.workflow }}-${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --grep "@smoke" --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: smoke-report
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
+  critical:
+    needs: smoke
+    runs-on: ubuntu-latest
+    env:
+      TEST_ENV: ${{ vars.TEST_ENV || 'qa' }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      INTEGRATIONS_MODE: ${{ vars.INTEGRATIONS_MODE || 'mock' }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      ZEPHYR_API_TOKEN: ${{ secrets.ZEPHYR_API_TOKEN }}
+      SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+      SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+      RUN_NAME: ${{ github.workflow }}-${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --grep "@critical" --project=chromium
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: critical-report
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
+      - name: Quality gate
+        if: ${{ !cancelled() }}
+        run: |
+          node -e '
+          const fs=require("fs");const glob="reports/junit.xml";const files=glob.includes("*")?fs.readdirSync(glob.split("*")[0]).filter(f=>f.endsWith(".xml")).map(f=>glob.split("*")[0]+f):[glob];
+          let tests=0,failures=0,critical=0;for(const f of files){if(!fs.existsSync(f))continue;const x=fs.readFileSync(f,"utf8");tests+=Number((x.match(/tests="(\d+)"/)||[0,0])[1]);failures+=Number((x.match(/failures="(\d+)"/)||[0,0])[1]);critical+=(x.match(/<testcase[^>]*@critical[^>]*>\s*<failure/g)||[]).length;}
+          const pass=tests?Math.round((tests-failures)/tests*100):0;
+          console.log("Tests:",tests,"Failures:",failures,"Pass rate:",pass+"%","Critical failures:",critical);
+          if(critical>0){console.error("Build blocked. Reason: "+critical+" critical test failure(s).");process.exit(1)}
+          if(pass<95){console.error("Build blocked. Reason: pass rate "+pass+"% < 95%.");process.exit(1)}
+          console.log("Quality gate PASSED");'
